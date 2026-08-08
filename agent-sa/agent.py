@@ -165,93 +165,24 @@ def _build_event_bus(save: bool, run_name: str) -> EventBus:
     return bus
 
 
-def run_test(
-    test_name: str, dry_run: bool = False, save: bool = False, requirement_id: Optional[str] = None
+def _run_analysis(
+    run_name: str,
+    cr_text: str,
+    label: str,
+    rerun_hint: str,
+    dry_run: bool,
+    save: bool,
+    requirement_id: Optional[str],
 ) -> bool:
-    """Run a single test case through the RequestImpactAnalysis slice."""
+    """Shared validate -> aggregate -> (maybe) LLM -> event path for both --test and --file.
 
-    if test_name not in TEST_CASES:
-        print(f"❌ Unknown test: {test_name}", file=sys.stderr)
-        return False
-
-    print(f"\n📋 Running: {TEST_CASES[test_name]['name']}")
-    print(f"   {TEST_CASES[test_name]['description']}")
-
-    test_input = load_test_input(test_name)
-    if test_input is None:
-        return False
-
-    if dry_run:
-        print_dry_run(
-            TEST_CASES[test_name]["name"], SYSTEM_PROMPT, build_user_prompt(test_input), f"--test {test_name}"
-        )
-        return True
-
-    try:
-        llm = get_llm_gateway()
-    except ValueError as e:  # unknown LLM_PROVIDER
-        print(f"❌ {e}", file=sys.stderr)
-        return False
-
-    if not llm.is_available():
-        print(f"❌ {type(llm).__name__} not available — missing package or API key.", file=sys.stderr)
-        print("   Check .env (copy .env.example if you haven't) and LLM_PROVIDER.", file=sys.stderr)
-        return False
-
-    event_bus = _build_event_bus(save, test_name)
-    handler = RequestImpactAnalysisHandler(llm=llm, system_prompt=SYSTEM_PROMPT, event_bus=event_bus)
-
-    try:
-        print("   🔄 Running RequestImpactAnalysisHandler...")
-        result = handler.handle(
-            RequestImpactAnalysisCommand(
-                change_request_id=test_name,
-                change_request_text=test_input,
-                # --requirement-id CLI flag wins; otherwise fall back to a
-                # TEST_CASES entry if one's been added. No real requirement
-                # ticket behind the built-in fixtures — see spec/traceability.md.
-                # Never fabricate one here.
-                requirement_id=requirement_id or TEST_CASES[test_name].get("requirement_id"),
-            )
-        )
-    except Exception as e:  # API errors, network errors, etc.
-        print(f"❌ Analysis failed: {e}", file=sys.stderr)
-        return False
-
-    return _render_result(result.analysis, test_name, save)
-
-
-def load_custom_input(file_path: Path) -> Optional[str]:
-    """Load CR text from a user-supplied file (--file) — not a TEST_CASES fixture."""
-    if not file_path.exists():
-        print(f"❌ Input file not found: {file_path}", file=sys.stderr)
-        return None
-
-    return file_path.read_text(encoding="utf-8")
-
-
-def run_file(
-    file_path: Path,
-    dry_run: bool = False,
-    save: bool = False,
-    requirement_id: Optional[str] = None,
-    change_request_id: Optional[str] = None,
-) -> bool:
-    """Run RequestImpactAnalysis against a real, user-supplied CR file (--file).
-
-    Same validate -> aggregate -> (maybe) LLM -> event path as run_test — the
-    only difference is where the CR text comes from. change_request_id
-    defaults to the file's stem so --save output filenames stay predictable.
+    `run_name` doubles as change_request_id and the --save output-file stem.
+    `label`/`rerun_hint` only feed the dry-run banner (print_dry_run) — the
+    two callers differ only in where cr_text/run_name/requirement_id come
+    from (a TEST_CASES fixture vs. a user-supplied file).
     """
-    run_name = change_request_id or file_path.stem
-    print(f"\n📋 Running: Custom CR — {file_path}")
-
-    cr_text = load_custom_input(file_path)
-    if cr_text is None:
-        return False
-
     if dry_run:
-        print_dry_run(f"Custom CR — {file_path.name}", SYSTEM_PROMPT, build_user_prompt(cr_text), f"--file {file_path}")
+        print_dry_run(label, SYSTEM_PROMPT, build_user_prompt(cr_text), rerun_hint)
         return True
 
     try:
@@ -284,6 +215,76 @@ def run_file(
         return False
 
     return _render_result(result.analysis, run_name, save)
+
+
+def run_test(
+    test_name: str, dry_run: bool = False, save: bool = False, requirement_id: Optional[str] = None
+) -> bool:
+    """Run a single test case through the RequestImpactAnalysis slice."""
+
+    if test_name not in TEST_CASES:
+        print(f"❌ Unknown test: {test_name}", file=sys.stderr)
+        return False
+
+    print(f"\n📋 Running: {TEST_CASES[test_name]['name']}")
+    print(f"   {TEST_CASES[test_name]['description']}")
+
+    test_input = load_test_input(test_name)
+    if test_input is None:
+        return False
+
+    return _run_analysis(
+        run_name=test_name,
+        cr_text=test_input,
+        label=TEST_CASES[test_name]["name"],
+        rerun_hint=f"--test {test_name}",
+        dry_run=dry_run,
+        save=save,
+        # --requirement-id CLI flag wins; otherwise fall back to a TEST_CASES
+        # entry if one's been added. No real requirement ticket behind the
+        # built-in fixtures — see spec/traceability.md. Never fabricate one.
+        requirement_id=requirement_id or TEST_CASES[test_name].get("requirement_id"),
+    )
+
+
+def load_custom_input(file_path: Path) -> Optional[str]:
+    """Load CR text from a user-supplied file (--file) — not a TEST_CASES fixture."""
+    if not file_path.exists():
+        print(f"❌ Input file not found: {file_path}", file=sys.stderr)
+        return None
+
+    return file_path.read_text(encoding="utf-8")
+
+
+def run_file(
+    file_path: Path,
+    dry_run: bool = False,
+    save: bool = False,
+    requirement_id: Optional[str] = None,
+    change_request_id: Optional[str] = None,
+) -> bool:
+    """Run RequestImpactAnalysis against a real, user-supplied CR file (--file).
+
+    Same validate -> aggregate -> (maybe) LLM -> event path as run_test — the
+    only difference is where the CR text comes from. change_request_id
+    defaults to the file's stem so --save output filenames stay predictable.
+    """
+    run_name = change_request_id or file_path.stem
+    print(f"\n📋 Running: Custom CR — {file_path}")
+
+    cr_text = load_custom_input(file_path)
+    if cr_text is None:
+        return False
+
+    return _run_analysis(
+        run_name=run_name,
+        cr_text=cr_text,
+        label=f"Custom CR — {file_path.name}",
+        rerun_hint=f"--file {file_path}",
+        dry_run=dry_run,
+        save=save,
+        requirement_id=requirement_id,
+    )
 
 
 def _render_result(analysis, test_name: str, save: bool) -> bool:

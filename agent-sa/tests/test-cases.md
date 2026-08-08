@@ -459,22 +459,18 @@ After execution, check:
 
 ### CI/CD Integration
 
-Add to your CI pipeline:
+The automated (pytest) layer already runs in CI — see
+[`.github/workflows/agent-sa-tests.yml`](../../.github/workflows/agent-sa-tests.yml).
+It installs `requirements.txt` + `requirements-dev.txt` and runs both pytest
+invocations from the table above (`tests/` and `ada-service/tests` — two
+separate processes, see `pytest.ini` for why). No API key needed: everything
+in CI goes through `FakeLlmGateway`.
 
-```bash
-# .gitlab-ci.yml
-test_agent:
-  stage: test
-  script:
-    - pip install -r requirements.txt
-    - export ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-    - python3 agent.py --test all --save
-    - python3 test_agent.py --validate all
-  artifacts:
-    paths:
-      - outputs/
-      - evidence/
-```
+The manual/exploratory layer in this document (`agent.py --test all --save`,
+requires a live API key) is intentionally **not** wired into CI — it's for
+sanity-checking real model behavior before a prompt change ships, run it
+locally when you touch `prompts/system-instructions.md` or the parsing in
+`features/request_impact_analysis/handler.py`.
 
 ### Local Pre-Commit Hook
 
