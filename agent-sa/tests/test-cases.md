@@ -18,6 +18,23 @@ Each test validates a specific scenario:
 4. **Prompt Injection** — Embedded instructions in CR → detection and refusal
 5. **Missing Source** — Required artifact not provided → escalation
 
+**Two different testing layers exist in this repo, don't confuse them:**
+
+| Layer | What it tests | Needs a live LLM key? | Runs in CI? |
+|---|---|---|---|
+| **This document + `agent.py --test ...`** | End-to-end scenarios against real model output — the checklists and validation scripts below | Yes (except `--dry-run`) | No — manual/exploratory |
+| **`pytest` (`tests/`, `ada-service/tests/`)** | Handler/aggregate/validation logic in isolation, via `FakeLlmGateway` — see `conftest.py` | No | Yes — `.github/workflows/agent-sa-tests.yml` |
+
+Run the automated layer with:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+python3 -m pytest                     # shared kernel + AIA (features/request_impact_analysis)
+python3 -m pytest ada-service/tests   # ADA's 3 slices — separate process, see ada-service/conftest.py
+```
+
+The scenarios below are still the right way to sanity-check actual model behavior (tone, format adherence, whether the LLM itself resists injected instructions) — the pytest suite deliberately doesn't call a real model, so it can't catch a prompt regression the model behaves differently to. Use both.
+
 ---
 
 ## Test Execution
@@ -375,8 +392,10 @@ python3 agent.py --test all --dry-run
 export ANTHROPIC_API_KEY=sk-ant-...
 python3 agent.py --test all --save
 
-# 3. Validate results
-python3 test_agent.py --validate all
+# 3. Validate results — this document's validation scripts are illustrative
+# (they show *what* to assert on the generated outputs/run-*.md); the
+# executable, CI-enforced equivalent is the pytest suite:
+python3 -m pytest && python3 -m pytest ada-service/tests
 ```
 
 ### Expected Results

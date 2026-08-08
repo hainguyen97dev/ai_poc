@@ -1,0 +1,40 @@
+name: agent-sa tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agent-sa/**"
+      - ".github/workflows/agent-sa-tests.yml"
+  pull_request:
+    paths:
+      - "agent-sa/**"
+      - ".github/workflows/agent-sa-tests.yml"
+
+defaults:
+  run:
+    working-directory: agent-sa
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run shared-kernel + AIA tests
+        run: python -m pytest -v
+
+      # Separate process from the step above: ada-service/features and the
+      # top-level features/ (AIA) both declare a `features` package — running
+      # them in one pytest process makes Python's sys.modules bind the name
+      # to whichever loads first. See ada-service/conftest.py and pytest.ini
+      # for the full explanation.
+      - name: Run ADA slice tests
+        run: python -m pytest -v ada-service/tests

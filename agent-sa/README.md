@@ -46,12 +46,13 @@ This mirrors the Solution Architect row in [lab-01-role-based-ai-agent-guide.md]
 | **agent.py** | Runnable proof-of-concept CLI agent | Step 4 |
 | **outputs/** | Generated analysis (drafts) | Step 4 |
 | outputs/sample-output.md | Reference normal-path output (hand-authored to schema) | Step 4 |
-| **tests/** | Test cases and validation | Step 6 |
-| tests/test-cases.md | All 4 required test scenarios + execution guide | Step 6 |
+| **tests/** | Manual test scenarios (`test-cases.md`) + automated pytest suite (`test_*.py`) for domain/infra + AIA | Step 6 |
+| tests/test-cases.md | All 5 required test scenarios + execution guide; also explains how this relates to the pytest suite | Step 6 |
 | **evidence/** | Human review and approval records | Step 7 |
 | evidence/review-record.md | Completed SA review + approval gate | Step 7 |
 | **AI_USAGE_LOG.md** | Audit trail of all agent runs | Step 8 |
-| **requirements.txt** | Python dependencies (shared by both implementations below) | — |
+| **conftest.py** / **pytest.ini** | pytest fixtures (`FakeLlmGateway`) and config for the `tests/` suite — see [Automated Unit Tests](#automated-unit-tests-pytest) | — |
+| **requirements.txt** / **requirements-dev.txt** | Runtime deps (shared by both implementations below) / test-only deps (`pytest`) | — |
 
 ### Second implementation: ADA API service (not part of the Lab 1 CLI flow above)
 
@@ -61,6 +62,8 @@ This repo also ships a standalone REST API service — the **Architecture Decisi
 | ---- | ------- |
 | **ada-service/main.py** | Thin FastAPI adapter — routes `/api/v1/analyze` to one of the 3 slices below; imports the shared `domain/` + `infra/` (see the sys.path bootstrap at the top of the file) |
 | **ada-service/features/** | ADA's 3 vertical slices: `analyze_requirement/`, `gap_impact_analysis/`, `draft_adr/` — each a Command + Handler |
+| **ada-service/tests/** | pytest suite covering all 3 slices — run separately (`pytest ada-service/tests`), never combined with the root `tests/` run, see [Automated Unit Tests](#automated-unit-tests-pytest) |
+| **ada-service/conftest.py** | sys.path bootstrap so `ada-service/tests/` can import `domain`/`infra` and its own `features/`, mirroring main.py's own bootstrap |
 | **ada-service/sa-agent-prompt.md** | ADA's system prompt (loaded by main.py at runtime) |
 | **ada-service/service-agent-contract.md** | ADA's agent contract — boundaries, controls, approval gates |
 | **Dockerfile** | Builds `domain/`, `infra/`, `ada-service/{main.py, sa-agent-prompt.md, features/}` into a REST API on port 8000 (build context is `agent-sa/`) |
@@ -261,6 +264,23 @@ python3 agent.py --test all --save
 # Check results
 cat evidence/test-results-*.json
 ```
+
+---
+
+## Automated Unit Tests (pytest)
+
+The scenarios above call a real (or `--dry-run`) LLM and are meant for manual/exploratory verification. Separately, `domain/`, `infra/`, and both apps' handlers have a `pytest` suite that runs offline against a `FakeLlmGateway` — no API key, no network — and is what CI (`.github/workflows/agent-sa-tests.yml`) actually enforces on every push/PR.
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+
+python3 -m pytest                     # shared kernel (domain/, infra/) + AIA's slice
+python3 -m pytest ada-service/tests   # ADA's 3 slices — run as a separate process, see why below
+```
+
+**Why two invocations, not one `pytest .`:** `features/` (AIA's slice) and `ada-service/features/` (ADA's 3 slices) are two different directories that both declare a top-level `features` package. Python's `sys.modules` can only bind that dotted name to one of them per process — running both suites together makes whichever imports second fail. `pytest.ini` scopes the default `pytest` invocation to `tests/` for exactly this reason; `ada-service/conftest.py` documents the same thing from that side. This mirrors the two apps already being separate deployments (CLI vs REST service), not a new constraint.
+
+See [tests/test-cases.md](./tests/test-cases.md) for how the two testing layers (manual scenario checklist vs. automated pytest) relate.
 
 ---
 
