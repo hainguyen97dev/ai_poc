@@ -35,6 +35,7 @@ This mirrors the Solution Architect row in [lab-01-role-based-ai-agent-guide.md]
 | spec/role-task.md | Task statement and scope | Step 1 |
 | spec/agent-contract.md | Boundaries, controls, approval gates | Step 2 |
 | spec/domain-model.md | DDD + EDA design: Aggregates, Events, Commands, vertical slices | — |
+| spec/traceability.md | User Journey → REQ-ID → CR-ID → PR → Release — the chain beyond this agent's own scope | — |
 | **features/** | AIA's one vertical slice (`request_impact_analysis/`) — Command + Handler | — |
 | **inputs/** | Approved CR inputs and test variants | Step 3 |
 | inputs/approved-sample-input.md | Real CR example (payment service extraction) | Step 3 |
@@ -401,6 +402,8 @@ Key rules:
 |------|---------|
 | [spec/role-task.md](./spec/role-task.md) | Role definition and task statement |
 | [spec/agent-contract.md](./spec/agent-contract.md) | Complete agent boundaries and controls |
+| [spec/domain-model.md](./spec/domain-model.md) | DDD + EDA domain design |
+| [spec/traceability.md](./spec/traceability.md) | Full chain: User Journey → REQ-ID → CR-ID → PR → Release |
 | [prompts/system-instructions.md](./prompts/system-instructions.md) | Agent behavior rules (versioned) |
 | [tests/test-cases.md](./tests/test-cases.md) | Test definitions and success criteria |
 

@@ -55,7 +55,7 @@ class RequestImpactAnalysisHandler:
     def handle(self, command: RequestImpactAnalysisCommand) -> RequestImpactAnalysisResult:
         analysis_id = AnalysisId(command.change_request_id or f"AIA-{uuid.uuid4().hex[:8]}")
         subject = ChangeRequestRef(id=analysis_id.value, text=command.change_request_text)
-        analysis = ChangeRequestAnalysis(analysis_id, subject)
+        analysis = ChangeRequestAnalysis(analysis_id, subject, requirement_id=command.requirement_id)
 
         outcome = validate_input(command.change_request_text)
 

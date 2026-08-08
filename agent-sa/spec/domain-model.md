@@ -1,6 +1,6 @@
 # Domain Model — DDD + Event-Driven Design
 
-> Companion to [role-task.md](./role-task.md) and [agent-contract.md](./agent-contract.md). Describes the **shared domain** behind both applications in this repo — the AIA CLI (`agent.py`) and the ADA REST service (`../ada-service/`) — using DDD building blocks, and how they communicate via domain events (EDA). Code lives in `domain/`, `infra/`, and per-app `features/` (see [../README.md](../README.md#architecture-domain-infra--vertical-slices)).
+> Companion to [role-task.md](./role-task.md) and [agent-contract.md](./agent-contract.md). Describes the **shared domain** behind both applications in this repo — the AIA CLI (`agent.py`) and the ADA REST service (`../ada-service/`) — using DDD building blocks, and how they communicate via domain events (EDA). Code lives in `domain/`, `infra/`, and per-app `features/` (see [../README.md](../README.md#architecture-domain--vertical-slices)).
 
 ## Bounded Context
 
@@ -104,20 +104,10 @@ AIA has one command because its five test scenarios (`normal`, `incomplete`, `ou
 ```
 Slices (Handlers)         ← no cross-slice calls, ever
 Domain (domain/)          ← shared within this bounded context: aggregates, events, value objects, ports
-Infra (infra/)            ← shared everywhere: EventBus, LlmGateway adapters, listeners
+Infra (infra/)            ← shared everywhere: EventBus, LlmGateway impl, listeners
 ```
 
 `domain/` and `infra/` are shared by **both** apps (AIA and ADA) because they're one bounded context; each app's `features/` are private to that app. This is why the Dockerfile for the ADA service now also copies `domain/` and `infra/`, not just `ada-service/main.py` (see [../Dockerfile](../Dockerfile)).
-
-## Implementation Status
-
-| Element | Status |
-|---|---|
-| `ChangeRequestAnalysis` aggregate, all 4 domain events, `EventBus`, `AuditLogListener`, `AnthropicGateway` | ✅ Implemented — `domain/`, `infra/` |
-| `RequestImpactAnalysis` slice (AIA) | ✅ Implemented — `features/request_impact_analysis/` |
-| `AnalyzeRequirement` / `RunGapImpactAnalysis` / `DraftAdr` slices (ADA) | ✅ Implemented — `ada-service/features/` |
-| Deterministic pre-LLM validation (secrets reject, module-map block, injection flag) | ✅ Implemented — `domain/validation.py`, wired into every handler |
-| `SolutionArchitectReview` aggregate | 📝 Modeled here, **not yet coded**. SA review is still a manual step — a human fills in [evidence/review-record.md](../evidence/review-record.md) by hand. Wiring `/api/v1/review` (ADA) and a CLI review command (AIA) to actually construct this aggregate and raise `AnalysisReviewed` is the natural next slice. |
 
 ## Why this over the old script-shaped code
 

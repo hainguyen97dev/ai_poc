@@ -164,11 +164,17 @@ def _dispatch(request: ArchitectureRequest):
     event_bus = _build_event_bus()
     ctx = request.context
 
+    # request.requirement_id is the upstream REQ-ID (spec/traceability.md) —
+    # passed through as-is, never defaulted to a fake-looking value. When
+    # absent, each handler still auto-generates its own analysis id (a run
+    # needs *a* primary key), but the aggregate's requirement_id stays None
+    # so the audit log honestly shows "TBD" instead of a fabricated REQ-ID.
+
     if request.task_type == TaskType.ANALYZE_REQUIREMENT:
         handler = AnalyzeRequirementHandler(llm_gateway, SYSTEM_PROMPT, event_bus)
         return handler.handle(
             AnalyzeRequirementCommand(
-                requirement_id=request.requirement_id or "REQ-AUTO",
+                requirement_id=request.requirement_id,
                 requirement_doc=request.requirement_doc,
                 as_is_architecture=ctx.as_is_architecture,
                 tech_stack=ctx.tech_stack or [],
@@ -185,6 +191,7 @@ def _dispatch(request: ArchitectureRequest):
                 change_description=request.change_description,
                 affected_modules=ctx.affected_modules or [],
                 current_design_doc=ctx.current_design_doc,
+                requirement_id=request.requirement_id,
             )
         )
 
@@ -195,6 +202,7 @@ def _dispatch(request: ArchitectureRequest):
                 decision_title=request.decision_title,
                 options_to_evaluate=ctx.options_to_evaluate or [],
                 constraints=ctx.constraints or [],
+                requirement_id=request.requirement_id,
             )
         )
 

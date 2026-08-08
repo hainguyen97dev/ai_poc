@@ -4,6 +4,8 @@
 
 **Compliance:** This log supports audit trail and accountability requirements. Every agent use must be logged here.
 
+**Traceability:** Each entry is one link in the chain described in [spec/traceability.md](./spec/traceability.md) — `Requirement (REQ-ID) → this agent's Analysis (CR-ID) → Implementation PR(s) → Release`. The Requirement/CR fields are filled in when the run happens (and are auto-captured for `Requirement ID` — see `infra/listeners.py`'s `AuditLogListener`); the PR/Release fields are filled in **by hand, later**, once implementation ships — this agent has no visibility into or authority over PRs (agent-contract.md § 5). Use `TBD` honestly when a link doesn't exist yet — never invent a REQ-ID or PR to fill the field.
+
 ---
 
 ## Usage Entry Template
@@ -16,8 +18,13 @@
 **Duration:** X minutes  
 **Status:** SUCCESS | BLOCKED | ESCALATED | ERROR  
 
+#### Traceability (spec/traceability.md)
+- **Requirement ID (REQ-ID):** [REQ-ID, or `TBD` if none exists yet — never fabricated]
+- **CR ID:** [change-request-id] — this agent's own primary key
+- **Implementation PR(s):** `TBD` — filled in by Tech Lead/engineers after implementation ships
+- **Release/Deploy Tag:** `TBD` — filled in by PO/Eng Lead at Phase 7 Go/No-Go
+
 #### Input Artifacts
-- **CR ID:** [change-request-id]
 - **CR Title:** [title]
 - **CR Version:** [version]
 - **Module Map:** [source, version]
@@ -71,8 +78,13 @@
 **Duration:** 5 minutes  
 **Status:** SUCCESS  
 
-#### Input Artifacts
+#### Traceability (spec/traceability.md)
+- **Requirement ID (REQ-ID):** `TBD` — this is a Lab 1 demo run; no real requirement ticket exists behind it. Not fabricated.
 - **CR ID:** CR-2026-PAYMENT-001
+- **Implementation PR(s):** `TBD` — not implemented; this is a reference/sample analysis only
+- **Release/Deploy Tag:** `TBD`
+
+#### Input Artifacts
 - **CR Title:** Extract Payment Service to Microservice
 - **CR Version:** v1.0 (approved by PO Jane Doe)
 - **Module Map:** current-architecture.md v2.1 (dated 2026-08-01)
@@ -127,8 +139,13 @@
 **Duration:** 1 minute  
 **Status:** BLOCKED  
 
-#### Input Artifacts
+#### Traceability (spec/traceability.md)
+- **Requirement ID (REQ-ID):** `TBD` — Lab 1 demo run; no real requirement ticket. Not fabricated.
 - **CR ID:** CR-2026-PAYMENT-001 (variant: incomplete)
+- **Implementation PR(s):** N/A — run was BLOCKED before analysis; nothing to implement
+- **Release/Deploy Tag:** N/A
+
+#### Input Artifacts
 - **CR Title:** Extract Payment Service (module map missing)
 - **CR Version:** v1.0 (incomplete)
 - **Module Map:** MISSING [ERROR]
@@ -179,8 +196,13 @@
 **Duration:** 5 minutes  
 **Status:** SUCCESS (with injection detected)  
 
-#### Input Artifacts
+#### Traceability (spec/traceability.md)
+- **Requirement ID (REQ-ID):** `TBD` — Lab 1 demo run; no real requirement ticket. Not fabricated.
 - **CR ID:** CR-2026-PAYMENT-ATTACK (simulated attack)
+- **Implementation PR(s):** N/A — security boundary test, not a real change
+- **Release/Deploy Tag:** N/A
+
+#### Input Artifacts
 - **CR Title:** Payment Service Extraction (with embedded instructions)
 - **CR Version:** v1.0 (modified for testing)
 - **Module Map:** current-architecture.md v2.1
@@ -270,6 +292,7 @@ Every entry in this log represents one agent execution that was:
 
 Each run must include:
 
+- [ ] Requirement ID (REQ-ID) recorded — or honestly marked `TBD` (never fabricated)
 - [ ] Input artifacts documented (CR ID, version, source)
 - [ ] Model and version recorded (Claude 3.5 Sonnet)
 - [ ] Token usage captured (prompt + completion)
@@ -279,17 +302,27 @@ Each run must include:
 - [ ] Approval decision recorded
 - [ ] Escalations (if any) noted
 - [ ] No PII or credentials logged
+- [ ] **Follow-up (after implementation ships):** Implementation PR(s) and Release/Deploy Tag added to this entry — see spec/traceability.md
 
 ---
 
 ## How to Add a New Entry
 
+**At analysis time:**
+
 1. Copy the template above
 2. Fill in all fields (date, time, CR ID, token usage, approval, etc.)
-3. Link to input, output, and review record files
-4. Append to this log (newest at bottom)
-5. Update Summary Statistics section
-6. Commit to version control (Git)
+3. **Requirement ID:** if the CR traces to a real requirement ticket, pass it as `requirement_id` on the Command (AIA) or in the `requirement_id` field of the request body (ADA) — `AuditLogListener` then captures it in the machine-appended log line automatically (`infra/listeners.py`). If there isn't one, write `TBD` here — don't invent one.
+4. Link to input, output, and review record files
+5. Append to this log (newest at bottom)
+6. Update Summary Statistics section
+7. Commit to version control (Git)
+
+**Later, once implementation ships (a human does this — the agent can't):**
+
+1. Find the entry by CR ID (or REQ-ID)
+2. Fill in **Implementation PR(s)** with the real PR URL(s) and **Release/Deploy Tag** with the shipped version/tag
+3. Commit the update
 
 Example:
 
@@ -300,10 +333,15 @@ python3 agent.py --test normal --save
 # Output saved to: outputs/run-normal.md
 # Review it: SA reviews sample-output.md
 # Fill in evidence/review-record.md
-# Add entry to this log (AI_USAGE_LOG.md)
+# Add entry to this log (AI_USAGE_LOG.md), including Requirement ID (or TBD)
 # Commit:
 git add -A
 git commit -m "Run #1: Impact analysis CR-2026-PAYMENT-001 (approved)"
+
+# ... weeks later, once the PR for this CR merges:
+# Edit the same AI_USAGE_LOG.md entry — fill in Implementation PR(s) + Release/Deploy Tag
+git add -A
+git commit -m "AI_USAGE_LOG: link CR-2026-PAYMENT-001 to PR #123 (merged)"
 ```
 
 ---
@@ -313,6 +351,7 @@ git commit -m "Run #1: Impact analysis CR-2026-PAYMENT-001 (approved)"
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-08-08 | Initial log with 3 sample runs |
+| 1.1 | 2026-08-08 | Added Traceability section (Requirement ID, Implementation PR(s), Release/Deploy Tag) — see spec/traceability.md. `requirement_id` now threaded through domain events and auto-captured by `AuditLogListener`; PR/Release remain manual fields, honestly marked `TBD`/`N/A` on all 3 historical runs (no real requirement or PR exists behind this Lab 1 demo data). |
 
 ---
 

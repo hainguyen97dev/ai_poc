@@ -35,9 +35,18 @@ class ChangeRequestAnalysis:
     complete inputs").
     """
 
-    def __init__(self, analysis_id: AnalysisId, subject: ChangeRequestRef):
+    def __init__(
+        self,
+        analysis_id: AnalysisId,
+        subject: ChangeRequestRef,
+        requirement_id: Optional[str] = None,
+    ):
         self.id = analysis_id
         self.subject = subject
+        # Upstream requirement this analysis traces back to (Phase 1, BA/PO —
+        # see spec/traceability.md). Optional: not every CR has one on hand,
+        # and this agent never invents one.
+        self.requirement_id = requirement_id
         self.status = AnalysisStatus.REQUESTED
         self.draft: Optional[Draft] = None
         # Convenience mirrors of the last-raised event's payload, so adapters
@@ -46,7 +55,9 @@ class ChangeRequestAnalysis:
         self.status_reason: Optional[str] = None
         self.injection_details: List[str] = []
         self._events: List[DomainEvent] = [
-            AnalysisRequested(analysis_id, subject_summary=subject.text[:80])
+            AnalysisRequested(
+                analysis_id, requirement_id=requirement_id, subject_summary=subject.text[:80]
+            )
         ]
 
     def flag_prompt_injection(self, detail: str) -> None:
@@ -58,19 +69,25 @@ class ChangeRequestAnalysis:
         """
         self._guard_mutable()
         self.injection_details.append(detail)
-        self._events.append(PromptInjectionDetected(self.id, detail=detail))
+        self._events.append(
+            PromptInjectionDetected(self.id, requirement_id=self.requirement_id, detail=detail)
+        )
 
     def block(self, reason: str) -> None:
         self._guard_mutable()
         self.status = AnalysisStatus.BLOCKED
         self.status_reason = reason
-        self._events.append(AnalysisBlocked(self.id, reason=reason))
+        self._events.append(
+            AnalysisBlocked(self.id, requirement_id=self.requirement_id, reason=reason)
+        )
 
     def reject(self, reason: str) -> None:
         self._guard_mutable()
         self.status = AnalysisStatus.REJECTED
         self.status_reason = reason
-        self._events.append(OutOfScopeRequestRejected(self.id, reason=reason))
+        self._events.append(
+            OutOfScopeRequestRejected(self.id, requirement_id=self.requirement_id, reason=reason)
+        )
 
     def complete(self, draft: Draft) -> None:
         self._guard_mutable()
@@ -79,7 +96,12 @@ class ChangeRequestAnalysis:
         self.status = AnalysisStatus.COMPLETED
         self.draft = draft
         self._events.append(
-            AnalysisCompleted(self.id, draft=draft, recommendation=draft.recommendation)
+            AnalysisCompleted(
+                self.id,
+                requirement_id=self.requirement_id,
+                draft=draft,
+                recommendation=draft.recommendation,
+            )
         )
 
     def drain_events(self) -> List[DomainEvent]:

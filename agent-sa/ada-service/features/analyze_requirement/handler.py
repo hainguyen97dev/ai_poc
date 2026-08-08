@@ -57,7 +57,13 @@ class AnalyzeRequirementHandler:
     def handle(self, cmd: AnalyzeRequirementCommand) -> ChangeRequestAnalysis:
         analysis_id = AnalysisId(cmd.requirement_id or f"ADA-{uuid.uuid4().hex[:8]}")
         subject_text = cmd.requirement_doc or "[No requirement document provided]"
-        analysis = ChangeRequestAnalysis(analysis_id, ChangeRequestRef(id=analysis_id.value, text=subject_text))
+        # requirement_id doubles as this slice's own id and the upstream REQ-ID
+        # (spec/traceability.md) — the requirement *is* the direct input here.
+        analysis = ChangeRequestAnalysis(
+            analysis_id,
+            ChangeRequestRef(id=analysis_id.value, text=subject_text),
+            requirement_id=cmd.requirement_id,
+        )
 
         # ADA doesn't block on missing context (test_case_2: "should ask clarifying
         # questions", "should_not_contain: Cannot proceed") — only secrets are fatal.

@@ -28,18 +28,34 @@ class AuditLogListener:
 
     def on_completed(self, event: AnalysisCompleted) -> None:
         rec = event.recommendation.value if event.recommendation else "UNSPECIFIED"
-        self._append(f"- {event.occurred_at} | {event.analysis_id.value} | COMPLETED | recommendation={rec}")
+        self._append(
+            f"- {event.occurred_at} | req={self._req(event)} | {event.analysis_id.value} | "
+            f"COMPLETED | recommendation={rec}"
+        )
 
     def on_blocked(self, event: AnalysisBlocked) -> None:
-        self._append(f"- {event.occurred_at} | {event.analysis_id.value} | BLOCKED | reason={event.reason}")
+        self._append(
+            f"- {event.occurred_at} | req={self._req(event)} | {event.analysis_id.value} | "
+            f"BLOCKED | reason={event.reason}"
+        )
 
     def on_rejected(self, event: OutOfScopeRequestRejected) -> None:
-        self._append(f"- {event.occurred_at} | {event.analysis_id.value} | REJECTED | reason={event.reason}")
+        self._append(
+            f"- {event.occurred_at} | req={self._req(event)} | {event.analysis_id.value} | "
+            f"REJECTED | reason={event.reason}"
+        )
 
     def on_injection_detected(self, event: PromptInjectionDetected) -> None:
         self._append(
-            f"- {event.occurred_at} | {event.analysis_id.value} | INJECTION_DETECTED | detail={event.detail}"
+            f"- {event.occurred_at} | req={self._req(event)} | {event.analysis_id.value} | "
+            f"INJECTION_DETECTED | detail={event.detail}"
         )
+
+    @staticmethod
+    def _req(event) -> str:
+        """REQ-ID for the traceability chain (spec/traceability.md) — 'TBD' when
+        the caller didn't supply one. Never fabricated."""
+        return event.requirement_id or "TBD"
 
     def _append(self, line: str) -> None:
         self.log_file.parent.mkdir(parents=True, exist_ok=True)

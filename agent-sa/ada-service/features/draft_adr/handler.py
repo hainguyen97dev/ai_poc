@@ -57,7 +57,11 @@ class DraftAdrHandler:
         subject_text = _subject_text(cmd)
         slug = re.sub(r"[^a-zA-Z0-9]+", "-", cmd.decision_title or "").strip("-").upper() or uuid.uuid4().hex[:8]
         analysis_id = AnalysisId(f"ADR-{slug}"[:64])
-        analysis = ChangeRequestAnalysis(analysis_id, ChangeRequestRef(id=analysis_id.value, text=subject_text))
+        analysis = ChangeRequestAnalysis(
+            analysis_id,
+            ChangeRequestRef(id=analysis_id.value, text=subject_text),
+            requirement_id=cmd.requirement_id,
+        )
 
         outcome = validate_input(subject_text, require_module_map=False)
 

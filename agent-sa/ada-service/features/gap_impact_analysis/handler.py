@@ -52,7 +52,11 @@ class RunGapImpactAnalysisHandler:
     def handle(self, cmd: RunGapImpactAnalysisCommand) -> ChangeRequestAnalysis:
         analysis_id = AnalysisId(cmd.change_request_id or f"ADA-{uuid.uuid4().hex[:8]}")
         subject_text = cmd.change_description or "[No change description provided]"
-        analysis = ChangeRequestAnalysis(analysis_id, ChangeRequestRef(id=analysis_id.value, text=subject_text))
+        analysis = ChangeRequestAnalysis(
+            analysis_id,
+            ChangeRequestRef(id=analysis_id.value, text=subject_text),
+            requirement_id=cmd.requirement_id,
+        )
 
         outcome = validate_input(subject_text, require_module_map=False)
 

@@ -22,6 +22,9 @@ def _now() -> str:
 class DomainEvent:
     analysis_id: AnalysisId
     occurred_at: str = field(default_factory=_now)
+    # Upstream link in the requirement → design → code chain (spec/traceability.md).
+    # None when the caller didn't supply one — never fabricated.
+    requirement_id: Optional[str] = None
 
 
 @dataclass(frozen=True)

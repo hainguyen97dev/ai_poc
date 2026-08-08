@@ -154,7 +154,9 @@ def _build_event_bus(save: bool, run_name: str) -> EventBus:
     return bus
 
 
-def run_test(test_name: str, dry_run: bool = False, save: bool = False) -> bool:
+def run_test(
+    test_name: str, dry_run: bool = False, save: bool = False, requirement_id: Optional[str] = None
+) -> bool:
     """Run a single test case through the RequestImpactAnalysis slice."""
 
     if test_name not in TEST_CASES:
@@ -192,6 +194,11 @@ def run_test(test_name: str, dry_run: bool = False, save: bool = False) -> bool:
             RequestImpactAnalysisCommand(
                 change_request_id=test_name,
                 change_request_text=test_input,
+                # --requirement-id CLI flag wins; otherwise fall back to a
+                # TEST_CASES entry if one's been added. No real requirement
+                # ticket behind the built-in fixtures — see spec/traceability.md.
+                # Never fabricate one here.
+                requirement_id=requirement_id or TEST_CASES[test_name].get("requirement_id"),
             )
         )
     except Exception as e:  # API errors, network errors, etc.
@@ -202,6 +209,8 @@ def run_test(test_name: str, dry_run: bool = False, save: bool = False) -> bool:
 
 
 def _render_result(analysis, test_name: str, save: bool) -> bool:
+    print(f"   REQ-ID: {analysis.requirement_id or 'TBD'}  |  CR-ID: {analysis.id.value}")
+
     if analysis.status == AnalysisStatus.BLOCKED:
         print(f"   ⚠️  BLOCKED — {analysis.status_reason}")
         print("   ✓ No API call made — validation caught this before the model was called")
@@ -236,7 +245,7 @@ def _render_result(analysis, test_name: str, save: bool) -> bool:
     return True
 
 
-def run_all_tests(dry_run: bool = False, save: bool = False) -> dict:
+def run_all_tests(dry_run: bool = False, save: bool = False, requirement_id: Optional[str] = None) -> dict:
     """Run all test cases."""
 
     results = {
@@ -252,7 +261,7 @@ def run_all_tests(dry_run: bool = False, save: bool = False) -> dict:
 
     for test_name in test_names:
         results["total_tests"] += 1
-        success = run_test(test_name, dry_run=dry_run, save=save)
+        success = run_test(test_name, dry_run=dry_run, save=save, requirement_id=requirement_id)
 
         results["results"].append(
             {
@@ -299,14 +308,22 @@ def main():
     )
     parser.add_argument("--dry-run", action="store_true", help="Print prompts without calling API")
     parser.add_argument("--save", action="store_true", help="Save output to files")
+    parser.add_argument(
+        "--requirement-id",
+        default=None,
+        help="Upstream REQ-ID to trace this run to (spec/traceability.md). "
+        "Omit to log 'TBD' — never fabricated.",
+    )
 
     args = parser.parse_args()
 
     if args.test == "all":
-        results = run_all_tests(dry_run=args.dry_run, save=args.save)
+        results = run_all_tests(dry_run=args.dry_run, save=args.save, requirement_id=args.requirement_id)
         sys.exit(0 if results["failed"] == 0 else 1)
     else:
-        success = run_test(args.test, dry_run=args.dry_run, save=args.save)
+        success = run_test(
+            args.test, dry_run=args.dry_run, save=args.save, requirement_id=args.requirement_id
+        )
         sys.exit(0 if success else 1)
 
 
