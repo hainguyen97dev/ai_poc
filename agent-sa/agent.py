@@ -16,10 +16,16 @@ Usage:
   python3 agent.py --test missing_source [--dry-run] [--save]
   python3 agent.py --test all [--dry-run] [--save]
 
+  # Analyze your own Change Request instead of a built-in fixture:
+  python3 agent.py --file path/to/my-cr.md [--dry-run] [--save] [--change-request-id CR-123]
+
 Options:
-  --dry-run     Print prompt without calling API (no API key needed)
-  --save        Save output to outputs/run-<test-name>.md
-  --test NAME   Run specific test case
+  --dry-run             Print prompt without calling API (no API key needed)
+  --save                Save output to outputs/run-<name>.md
+  --test NAME           Run a built-in fixture test case (see tests/test-cases.md)
+  --file PATH           Analyze a real Change Request from a file — mutually exclusive with --test
+  --change-request-id   ID for the analysis when using --file (defaults to the file's stem)
+  --requirement-id      Upstream REQ-ID to trace this run to (spec/traceability.md)
 """
 
 import argparse
@@ -120,10 +126,15 @@ def load_test_input(test_name: str) -> Optional[str]:
     return input_file.read_text(encoding="utf-8")
 
 
-def print_dry_run(test_name: str, system_prompt: str, user_prompt: str) -> None:
-    """Print dry run information — no Command is built, no aggregate exists, no API call."""
+def print_dry_run(label: str, system_prompt: str, user_prompt: str, rerun_hint: str) -> None:
+    """Print dry run information — no Command is built, no aggregate exists, no API call.
+
+    `label` is a human-readable description (a TEST_CASES name or a --file
+    path); `rerun_hint` is the CLI args to show for "run this for real"
+    (e.g. "--test normal" or "--file my-cr.md").
+    """
     print("=" * 80)
-    print(f"DRY RUN: {TEST_CASES[test_name]['name']}")
+    print(f"DRY RUN: {label}")
     print("=" * 80)
     print()
     print("SYSTEM PROMPT:")
@@ -135,9 +146,9 @@ def print_dry_run(test_name: str, system_prompt: str, user_prompt: str) -> None:
     print(user_prompt[:500] + "..." if len(user_prompt) > 500 else user_prompt)
     print()
     print("=" * 80)
-    print("To run this test with API call:")
+    print("To run this for real (calls the API):")
     print("  export ANTHROPIC_API_KEY=sk-ant-...")
-    print(f"  python3 agent.py --test {test_name} [--save]")
+    print(f"  python3 agent.py {rerun_hint} [--save]")
     print("=" * 80)
 
 
@@ -171,7 +182,9 @@ def run_test(
         return False
 
     if dry_run:
-        print_dry_run(test_name, SYSTEM_PROMPT, build_user_prompt(test_input))
+        print_dry_run(
+            TEST_CASES[test_name]["name"], SYSTEM_PROMPT, build_user_prompt(test_input), f"--test {test_name}"
+        )
         return True
 
     try:
@@ -206,6 +219,71 @@ def run_test(
         return False
 
     return _render_result(result.analysis, test_name, save)
+
+
+def load_custom_input(file_path: Path) -> Optional[str]:
+    """Load CR text from a user-supplied file (--file) — not a TEST_CASES fixture."""
+    if not file_path.exists():
+        print(f"❌ Input file not found: {file_path}", file=sys.stderr)
+        return None
+
+    return file_path.read_text(encoding="utf-8")
+
+
+def run_file(
+    file_path: Path,
+    dry_run: bool = False,
+    save: bool = False,
+    requirement_id: Optional[str] = None,
+    change_request_id: Optional[str] = None,
+) -> bool:
+    """Run RequestImpactAnalysis against a real, user-supplied CR file (--file).
+
+    Same validate -> aggregate -> (maybe) LLM -> event path as run_test — the
+    only difference is where the CR text comes from. change_request_id
+    defaults to the file's stem so --save output filenames stay predictable.
+    """
+    run_name = change_request_id or file_path.stem
+    print(f"\n📋 Running: Custom CR — {file_path}")
+
+    cr_text = load_custom_input(file_path)
+    if cr_text is None:
+        return False
+
+    if dry_run:
+        print_dry_run(f"Custom CR — {file_path.name}", SYSTEM_PROMPT, build_user_prompt(cr_text), f"--file {file_path}")
+        return True
+
+    try:
+        llm = get_llm_gateway()
+    except ValueError as e:  # unknown LLM_PROVIDER
+        print(f"❌ {e}", file=sys.stderr)
+        return False
+
+    if not llm.is_available():
+        print(f"❌ {type(llm).__name__} not available — missing package or API key.", file=sys.stderr)
+        print("   Check .env (copy .env.example if you haven't) and LLM_PROVIDER.", file=sys.stderr)
+        return False
+
+    event_bus = _build_event_bus(save, run_name)
+    handler = RequestImpactAnalysisHandler(llm=llm, system_prompt=SYSTEM_PROMPT, event_bus=event_bus)
+
+    try:
+        print("   🔄 Running RequestImpactAnalysisHandler...")
+        result = handler.handle(
+            RequestImpactAnalysisCommand(
+                change_request_id=run_name,
+                change_request_text=cr_text,
+                # Never fabricated: TBD in the audit log unless the caller
+                # actually supplies an upstream REQ-ID — see spec/traceability.md.
+                requirement_id=requirement_id,
+            )
+        )
+    except Exception as e:  # API errors, network errors, etc.
+        print(f"❌ Analysis failed: {e}", file=sys.stderr)
+        return False
+
+    return _render_result(result.analysis, run_name, save)
 
 
 def _render_result(analysis, test_name: str, save: bool) -> bool:
@@ -303,8 +381,21 @@ def main():
     )
     parser.add_argument(
         "--test",
-        required=True,
-        help="Test case to run (normal, incomplete, out_of_scope, missing_source, all)",
+        default=None,
+        help="Built-in fixture test case to run (normal, incomplete, out_of_scope, "
+        "missing_source, all). Mutually exclusive with --file.",
+    )
+    parser.add_argument(
+        "--file",
+        type=Path,
+        default=None,
+        help="Path to a Markdown/text file with your own Change Request — analyze "
+        "real input instead of a built-in fixture. Mutually exclusive with --test.",
+    )
+    parser.add_argument(
+        "--change-request-id",
+        default=None,
+        help="ID for the analysis when using --file (defaults to the file's stem).",
     )
     parser.add_argument("--dry-run", action="store_true", help="Print prompts without calling API")
     parser.add_argument("--save", action="store_true", help="Save output to files")
@@ -317,7 +408,21 @@ def main():
 
     args = parser.parse_args()
 
-    if args.test == "all":
+    if not args.test and not args.file:
+        parser.error("one of --test or --file is required")
+    if args.test and args.file:
+        parser.error("--test and --file are mutually exclusive — pick one")
+
+    if args.file:
+        success = run_file(
+            args.file,
+            dry_run=args.dry_run,
+            save=args.save,
+            requirement_id=args.requirement_id,
+            change_request_id=args.change_request_id,
+        )
+        sys.exit(0 if success else 1)
+    elif args.test == "all":
         results = run_all_tests(dry_run=args.dry_run, save=args.save, requirement_id=args.requirement_id)
         sys.exit(0 if results["failed"] == 0 else 1)
     else:

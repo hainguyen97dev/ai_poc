@@ -133,14 +133,20 @@ pip install -r requirements.txt
 # Configure (once)
 cp .env.example .env && $EDITOR .env   # set LLM_PROVIDER + the matching API key
 
-# Run test case
+# Run a built-in fixture test case
 python3 agent.py --test normal --dry-run       # Preview prompts (no API call)
 python3 agent.py --test normal --save           # Run and save output
 
-# Run all tests
+# Run all fixture tests
 python3 agent.py --test all --dry-run
 python3 agent.py --test all --save
+
+# Analyze your own Change Request instead of a fixture
+python3 agent.py --file path/to/my-cr.md --dry-run
+python3 agent.py --file path/to/my-cr.md --save --requirement-id REQ-042
 ```
+
+`--test` and `--file` are mutually exclusive — one of them is required. `--file` runs the same validate → analyze → event path as `--test`, just reading your CR text from an arbitrary file instead of a `TEST_CASES` fixture.
 
 ### Option 2: Docker — runs the separate ADA API service, not agent.py
 
