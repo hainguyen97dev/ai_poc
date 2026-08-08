@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  # ADA REST API service (ada-service/main.py). Distinct from the Lab 1 CLI agent (agent.py / AIA);
+  # see ./ada-service/service-agent-contract.md for its contract.
+  ada-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ada-agent
+    ports:
+      - "8000:8000"
+    env_file:
+      # LLM_PROVIDER, ANTHROPIC_*, MINIMAX_* — copy .env.example to .env first.
+      # required: false so `docker compose up` still works with plain shell-exported
+      # env vars (below) if you haven't created a .env file.
+      - path: .env
+        required: false
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - PYTHONUNBUFFERED=1
+      - PORT=8000
+    volumes:
+      - ./ada-service/sa-agent-prompt.md:/app/sa-agent-prompt.md:ro
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - ada-network
+
+networks:
+  ada-network:
+    driver: bridge

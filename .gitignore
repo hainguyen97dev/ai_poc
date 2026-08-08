@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets — never commit real keys (see agent-sa/.env.example for the template)
+.env
+.env.local
+.env.*.local
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker
+*.log
+
+# agent-sa: generated at runtime, not source
+agent-sa/outputs/run-*.md
+agent-sa/evidence/test-results-*.json
+agent-sa/test_results.json
+
+# Large reference docs — not referenced by any file in this repo, kept local only
+*.pdf

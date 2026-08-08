@@ -1,0 +1,42 @@
+# Docker build context exclusions
+.git
+.gitignore
+.env
+.env.local
+*.pyc
+__pycache__
+.pytest_cache
+.venv
+venv
+node_modules
+dist
+build
+*.egg-info
+.DS_Store
+
+# Test outputs (keep minimal)
+outputs/*
+evidence/*
+
+# Documentation (not needed in container)
+*.md
+README.md
+docs/
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# CI/CD
+.gitlab-ci.yml
+.github/
+
+# What actually goes into the ADA image (see Dockerfile COPY instructions):
+# - domain/, infra/           (shared kernel)
+# - ada-service/main.py, sa-agent-prompt.md, features/
+# - requirements.txt
+# agent.py, spec/, agent-sa/features/, prompts/, inputs/, outputs/, tests/,
+# evidence/ belong to the separate AIA CLI and are simply never COPYd here.
