@@ -11,6 +11,7 @@ __pycache__/
 venv/
 env/
 
+.venv312/
 # Secrets — never commit real keys (see agent-sa/.env.example for the template)
 .env
 .env.local
@@ -27,10 +28,39 @@ env/
 # Docker
 *.log
 
+# Test / coverage artifacts
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+.tox/
+.nox/
+
+# Local databases and temporary files
+*.sqlite
+*.sqlite3
+*.db
+*.tmp
+*.bak
+
+# Frontend / build artifacts
+node_modules/
+dist/
+build/
+.parcel-cache/
+.vite/
+.cache/
+
 # agent-sa: generated at runtime, not source
+agent-sa/logs/
 agent-sa/outputs/run-*.md
+agent-sa/outputs/*.tmp
 agent-sa/evidence/test-results-*.json
 agent-sa/test_results.json
+agent-sa/.coverage
+agent-sa/.coverage.*
 
 # Large reference docs — not referenced by any file in this repo, kept local only
 *.pdf
+
+/data/

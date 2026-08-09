@@ -49,6 +49,28 @@ class TestNormalPath:
         assert "Kong" in user_prompt
         assert "On-premise deployment required" in user_prompt
 
+    def test_reasoning_flows_from_gateway_into_draft(self, fake_llm, event_bus):
+        fake_llm.response = SAMPLE_DRAFT
+        fake_llm.reasoning = "Kong fits the on-premise constraint; AWS API Gateway doesn't."
+        analysis = _handler(fake_llm, event_bus).handle(
+            DraftAdrCommand(decision_title="API Gateway Pattern", options_to_evaluate=["Kong"])
+        )
+
+        assert analysis.draft.reasoning == "Kong fits the on-premise constraint; AWS API Gateway doesn't."
+
+    def test_prompt_includes_current_architecture_baseline(self, fake_llm, event_bus):
+        fake_llm.response = SAMPLE_DRAFT
+        _handler(fake_llm, event_bus).handle(
+            DraftAdrCommand(
+                decision_title="API Gateway Pattern",
+                current_architecture="Current system uses a Spring Boot monolith.",
+            )
+        )
+
+        _, user_prompt = fake_llm.calls[0]
+        assert "Current Architecture Baseline" in user_prompt
+        assert "Spring Boot monolith" in user_prompt
+
 
 class TestNoDecisionTitle:
     def test_falls_back_to_generated_id(self, fake_llm, event_bus):

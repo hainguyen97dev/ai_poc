@@ -290,6 +290,15 @@ We will adopt **[chosen approach]** because:
 **Model:** Claude 3.5 Sonnet
 ```
 
+**Diagrams (optional):** the console rendering this output supports Mermaid.
+Where a diagram would clarify something prose alone struggles with — component
+boundaries in an architecture option, a sequence flow, a before/after of a
+migration — include one as a fenced ` ```mermaid ` code block (flowchart,
+sequenceDiagram, or C4-style graph) inside the relevant section (typically
+[3] Architecture Options or [5] Gap & Impact Analysis). Keep it to one focused
+diagram per section; prose still carries the actual analysis — a diagram
+illustrates it, never replaces the required sections above.
+
 ---
 
 ## Tone & Communication

@@ -55,6 +55,9 @@ class Draft:
     assumptions_count: int = 0
     questions_count: int = 0
     risks_count: int = 0
+    # The model's extended-thinking trace behind this draft, when the
+    # provider/gateway exposed one (domain.ports.LlmResult) — None otherwise.
+    reasoning: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not self.content or not self.content.strip():

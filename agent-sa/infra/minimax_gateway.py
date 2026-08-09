@@ -14,8 +14,12 @@ production, since it hasn't been exercised against a live key here.
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 from typing import Optional
+
+from domain.ports import LlmResult
 
 try:
     import httpx
@@ -25,6 +29,7 @@ except ImportError:  # pragma: no cover - exercised via is_available()
     HTTPX_AVAILABLE = False
 
 _DEFAULT_BASE_URL = "https://api.minimax.io/v1/text/chatcompletion_v2"
+logger = logging.getLogger("ada.llm.minimax")
 
 
 class MinimaxGateway:
@@ -52,6 +57,27 @@ class MinimaxGateway:
         return HTTPX_AVAILABLE and bool(self._api_key) and bool(self.model)
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
+        payload = self._request(system_prompt, user_prompt)
+        try:
+            return payload["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as e:
+            raise RuntimeError(f"Unexpected MiniMax response shape: {payload}") from e
+
+    def generate_with_reasoning(self, system_prompt: str, user_prompt: str) -> LlmResult:
+        payload = self._request(system_prompt, user_prompt)
+        try:
+            message = payload["choices"][0]["message"]
+            content = message["content"]
+        except (KeyError, IndexError, TypeError) as e:
+            raise RuntimeError(f"Unexpected MiniMax response shape: {payload}") from e
+        # MiniMax's reasoning-capable models (e.g. MiniMax-M1/M2) return the
+        # thinking trace as "reasoning_content" alongside "content", following
+        # the same convention as other OpenAI-compatible reasoning APIs. Plain
+        # (non-reasoning) models simply omit the field — reasoning stays None.
+        reasoning = message.get("reasoning_content") or None
+        return LlmResult(content=content, reasoning=reasoning)
+
+    def _request(self, system_prompt: str, user_prompt: str) -> dict:
         if not HTTPX_AVAILABLE:
             raise RuntimeError("httpx package not installed. Install with: pip install httpx")
         if not self._api_key:
@@ -60,36 +86,68 @@ class MinimaxGateway:
             raise RuntimeError("MINIMAX_MODEL not set. export MINIMAX_MODEL=... (e.g. abab6.5s-chat)")
 
         params = {"GroupId": self._group_id} if self._group_id else None
-
-        response = httpx.post(
+        started_at = time.perf_counter()
+        logger.info(
+            "llm_request_started provider=minimax model=%s max_tokens=%s endpoint=%s",
+            self.model,
+            self.max_tokens,
             self._base_url,
-            params=params,
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": self.model,
-                "max_tokens": self.max_tokens,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-            },
-            timeout=120,
         )
-        response.raise_for_status()
+
+        try:
+            response = httpx.post(
+                self._base_url,
+                params=params,
+                headers={
+                    "Authorization": f"Bearer {self._api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.model,
+                    "max_tokens": self.max_tokens,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                },
+                timeout=120,
+            )
+            response.raise_for_status()
+        except Exception:
+            logger.exception(
+                "llm_request_failed provider=minimax model=%s duration_ms=%d",
+                self.model,
+                int((time.perf_counter() - started_at) * 1000),
+            )
+            raise
+
         payload = response.json()
 
         # MiniMax reports application-level errors with HTTP 200 + a non-zero
         # base_resp.status_code (auth failures, quota, bad model id, ...).
         base_resp = payload.get("base_resp") or {}
         if base_resp.get("status_code", 0) != 0:
+            logger.error(
+                "llm_application_error provider=minimax model=%s code=%s message=%r duration_ms=%d",
+                self.model,
+                base_resp.get("status_code"),
+                base_resp.get("status_msg"),
+                int((time.perf_counter() - started_at) * 1000),
+            )
             raise RuntimeError(
                 f"MiniMax API error {base_resp.get('status_code')}: {base_resp.get('status_msg')}"
             )
 
-        try:
-            return payload["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as e:
-            raise RuntimeError(f"Unexpected MiniMax response shape: {payload}") from e
+        usage = payload.get("usage") or {}
+        logger.info(
+            "llm_request_completed provider=minimax model=%s http_status=%s duration_ms=%d "
+            "prompt_tokens=%s completion_tokens=%s total_tokens=%s",
+            self.model,
+            response.status_code,
+            int((time.perf_counter() - started_at) * 1000),
+            usage.get("prompt_tokens", "unknown"),
+            usage.get("completion_tokens", "unknown"),
+            usage.get("total_tokens", "unknown"),
+        )
+
+        return payload

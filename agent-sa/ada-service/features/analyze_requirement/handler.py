@@ -23,6 +23,8 @@ def build_prompt(cmd: AnalyzeRequirementCommand) -> str:
         context_parts.append("**Constraints:**\n- " + "\n- ".join(cmd.constraints))
     if cmd.known_issues:
         context_parts.append("**Known Issues:**\n- " + "\n- ".join(cmd.known_issues))
+    if cmd.conversation_context:
+        context_parts.append(cmd.conversation_context)
     context_str = "\n\n".join(context_parts) or "[No context provided]"
 
     return f"""
@@ -75,9 +77,11 @@ class AnalyzeRequirementHandler:
             for detail in outcome.injection_details:
                 analysis.flag_prompt_injection(detail)
 
-            draft_text = self._llm.generate(self._system_prompt, build_prompt(cmd))
+            result = self._llm.generate_with_reasoning(self._system_prompt, build_prompt(cmd))
+            draft_text = result.content
             draft = Draft(
                 content=draft_text,
+                reasoning=result.reasoning,
                 assumptions_count=draft_text.count("[ASSUMPTION"),
                 questions_count=draft_text.count("[QUESTION"),
                 risks_count=max(0, draft_text.lower().count("| risk") - 1),

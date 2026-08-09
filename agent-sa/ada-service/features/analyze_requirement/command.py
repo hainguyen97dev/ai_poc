@@ -14,3 +14,7 @@ class AnalyzeRequirementCommand:
     tech_stack: List[str] = field(default_factory=list)
     constraints: List[str] = field(default_factory=list)
     known_issues: List[str] = field(default_factory=list)
+    # Chat transcript since the last draft version, folded in by
+    # features/chat_session/refine_draft_handler.py on "Refine draft". None
+    # for a normal /api/v1/analyze call.
+    conversation_context: Optional[str] = None

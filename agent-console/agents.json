@@ -1,0 +1,20 @@
+{
+  "agents": [
+    {
+      "id": "ada",
+      "name": "Architecture Decision Assistant",
+      "shortName": "ADA",
+      "description": "Architecture options, impact analysis, and ADR drafts",
+      "baseUrl": "http://127.0.0.1:8000",
+      "protocol": "ada-v1",
+      "endpoints": {
+        "health": "/health",
+        "analyze": "/api/v1/analyze",
+        "samples": "/api/v1/sample-inputs",
+        "sessions": "/api/v1/sessions",
+        "usage": "/api/v1/usage",
+        "docs": "/docs"
+      }
+    }
+  ]
+}

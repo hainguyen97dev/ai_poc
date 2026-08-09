@@ -45,6 +45,15 @@ class TestNormalPath:
         assert analysis.draft.questions_count == 1
         assert analysis.draft.risks_count == 1
 
+    def test_reasoning_flows_from_gateway_into_draft(self, fake_llm, event_bus):
+        fake_llm.response = SAMPLE_DRAFT
+        fake_llm.reasoning = "Reporting's direct DB read is the dependency that matters most here."
+        analysis = _handler(fake_llm, event_bus).handle(
+            RunGapImpactAnalysisCommand(change_request_id="CR-042", change_description="Migrate payment service")
+        )
+
+        assert analysis.draft.reasoning == "Reporting's direct DB read is the dependency that matters most here."
+
     def test_prompt_includes_change_description_and_modules(self, fake_llm, event_bus):
         fake_llm.response = SAMPLE_DRAFT
         _handler(fake_llm, event_bus).handle(

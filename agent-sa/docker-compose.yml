@@ -22,6 +22,8 @@ services:
       - PORT=8000
     volumes:
       - ./ada-service/sa-agent-prompt.md:/app/sa-agent-prompt.md:ro
+      - ../current-architecture:/app/current-architecture:ro
+      - ../data:/app/data
       - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

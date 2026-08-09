@@ -36,6 +36,25 @@ class TestNormalPath:
         assert analysis.draft.assumptions_count == 1
         assert analysis.draft.questions_count == 1
 
+    def test_reasoning_flows_from_gateway_into_draft(self, fake_llm, event_bus):
+        fake_llm.response = SAMPLE_DRAFT
+        fake_llm.reasoning = "Considered Java/Spring Boot fit before picking an option."
+
+        analysis = _handler(fake_llm, event_bus).handle(
+            AnalyzeRequirementCommand(requirement_id="REQ-001", requirement_doc="# Integrate Payment Gateway")
+        )
+
+        assert analysis.draft.reasoning == "Considered Java/Spring Boot fit before picking an option."
+
+    def test_reasoning_is_none_when_gateway_does_not_provide_one(self, fake_llm, event_bus):
+        fake_llm.response = SAMPLE_DRAFT  # fake_llm.reasoning defaults to None
+
+        analysis = _handler(fake_llm, event_bus).handle(
+            AnalyzeRequirementCommand(requirement_id="REQ-001", requirement_doc="# Integrate Payment Gateway")
+        )
+
+        assert analysis.draft.reasoning is None
+
 
 class TestMissingContextDoesNotBlock:
     """test_case_2 in the old fixtures: agent should ask clarifying questions,
